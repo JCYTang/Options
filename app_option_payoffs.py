@@ -46,8 +46,14 @@ app.layout = html.Div([
         dcc.Dropdown(
             id='prt-dropdown',
             options=prt_options
+            # value='IMDVFP'
         )
-    ]),
+
+        # html.Label('Select Issuer'),
+        # dcc.Dropdown(
+        #     id='issuer-dropdown'
+        # )
+    ], style={'display': 'table-cell', 'width': '25%'}),
 
     # Issuer drop down box
     html.Div([
@@ -55,21 +61,21 @@ app.layout = html.Div([
         dcc.Dropdown(
             id='issuer-dropdown'
         )
-    ]),
+    ], style={'display': 'table-cell', 'width': '25%'}),
 
     # dash table
     html.Div([
         dash_table.DataTable(
             id='sec_table'
         )
-    ]),
+    ], style={'width': '50%'}),
 
     # option payoff chart
     html.Div([
         dcc.Graph(
             id='payoff_graph'
         )
-    ])
+    ], style={'width': '50%'})
 
 ])
 
@@ -92,13 +98,21 @@ def update_issuer_dropdown(prt):
      dash.dependencies.Input('issuer-dropdown', 'value')]
 )
 def clean_data(prt, issuer):
-    sec_types = ['OS', 'CO', 'PO']
-    df_filter = df[(df['Portfolio Code'] == prt) & (df['Security Type'].isin(sec_types)) & (df['Issuer'] == issuer)].copy()
-    df_filter['Average Cost'] = df_filter['Total Cost'] / (df_filter['Unit Holding'] * df_filter['Lot Size'])
-    fields = ['Security', 'Security Type', 'Unit Holding', 'Lot Size', 'Expiry Date', 'Excercise Price',
-              'Average Cost', 'Total Cost']
-    df_filter = df_filter.loc[:, fields]
-    return df_filter.to_json(date_format='iso', orient='split')
+    if prt is not None and issuer is not None:
+        sec_types = ['OS', 'CO', 'PO']
+        df_filter = df[(df['Portfolio Code'] == prt) & (df['Security Type'].isin(sec_types)) &
+            (df['Issuer'] == issuer)].copy()
+        df_filter = df_filter[((df_filter['Security Type'] == 'OS') & (df_filter['Security'].str.len() == 3)) |
+            (df_filter['Security Type'].isin(['CO', 'PO']))].copy()
+        df_filter['Average Cost'] = df_filter['Total Cost'] / (df_filter['Unit Holding'] * df_filter['Lot Size'])
+        fields = ['Security', 'Security Type', 'Unit Holding', 'Lot Size', 'Expiry Date', 'Market Price', 'Excercise Price',
+                  'Average Cost', 'Total Cost']
+        df_filter = df_filter.loc[:, fields]
+        return df_filter.to_json(date_format='iso', orient='split')
+
+    else:
+        return '{}'
+
 
 # callback function to display columns on table
 @app.callback(
@@ -114,7 +128,7 @@ def display_columns(json_data):
     dash.dependencies.Output('sec_table', 'data'),
     [dash.dependencies.Input('filtered_df', 'children')]
 )
-def display_columns(json_data):
+def display_rows(json_data):
     df_filter = pd.read_json(json_data, orient='split')
     return df_filter.to_dict("rows")
 
@@ -124,60 +138,63 @@ def display_columns(json_data):
     [dash.dependencies.Input('filtered_df', 'children')]
 )
 def update_chart(json_data):
-    df_filter = pd.read_json(json_data, orient='split')
-    issuer = df_filter[df_filter['Security Type'] == 'OS']['Security'].iloc[0]
+    if json_data == '{}':
+        figure = dict()
 
-    min_price = 0
-    max_price = df_filter['Excercise Price'].max() * 1.2
-    prices = np.arange(min_price, max_price, 0.01)
-    df_payoff = pd.DataFrame(index=prices)
+    else:
+        df_filter = pd.read_json(json_data, orient='split')
+        issuer = df_filter[df_filter['Security Type'] == 'OS']['Security'].values[0]
+        min_price = 0
+        max_price = max(df_filter['Market Price'].max(), df_filter['Excercise Price'].max()) * 1.2
+        prices = np.arange(min_price, max_price, 0.01)
+        df_payoff = pd.DataFrame(index=prices)
 
-    # calculate payoffs and store in a dataframe
-    sec_count = 0
-    for idx, row in df_filter.iterrows():
-        if row['Security Type'] == 'OS':
-            df_payoff[sec_count] = row['Unit Holding'] * df_payoff.index - row['Total Cost']
+        # calculate payoffs and store in a dataframe
+        sec_count = 0
+        for idx, row in df_filter.iterrows():
+            if row['Security Type'] == 'OS':
+                df_payoff[sec_count] = row['Unit Holding'] * df_payoff.index - row['Total Cost']
 
-        elif row['Security Type'] == 'CO':
-            payoff = df_payoff.index - row['Excercise Price']
-            df_payoff.loc[payoff >= 0, sec_count] = row['Unit Holding'] * row['Lot Size'] * payoff[payoff >= 0] - row[
-                'Total Cost']
-            df_payoff.loc[payoff < 0, sec_count] = 0 - row['Total Cost']
+            elif row['Security Type'] == 'CO':
+                payoff = df_payoff.index - row['Excercise Price']
+                df_payoff.loc[payoff >= 0, sec_count] = row['Unit Holding'] * row['Lot Size'] * payoff[payoff >= 0] - \
+                    row['Total Cost']
+                df_payoff.loc[payoff < 0, sec_count] = 0 - row['Total Cost']
 
-        elif row['Security Type'] == 'PO':
-            payoff = row['Excercise Price'] - df_payoff.index
-            df_payoff.loc[payoff >= 0, sec_count] = row['Unit Holding'] * row['Lot Size'] * payoff[payoff >= 0] - row[
-                'Total Cost']
-            df_payoff.loc[payoff < 0, sec_count] = 0 - row['Total Cost']
+            elif row['Security Type'] == 'PO':
+                payoff = row['Excercise Price'] - df_payoff.index
+                df_payoff.loc[payoff >= 0, sec_count] = row['Unit Holding'] * row['Lot Size'] * payoff[payoff >= 0] - \
+                    row['Total Cost']
+                df_payoff.loc[payoff < 0, sec_count] = 0 - row['Total Cost']
 
-        sec_count += 1
+            sec_count += 1
 
-    df_payoff.loc[:, 'Total'] = df_payoff.sum(axis=1)
+        df_payoff.loc[:, 'Total'] = df_payoff.sum(axis=1)
 
-    # option payoff chart
-    scatter = [go.Scatter(
-        x=df_payoff.index,
-        y=df_payoff['Total'],
-        mode='lines',
-        name=issuer,
-        showlegend=False
-    )]
-
-    strikes = df_filter.loc[df['Excercise Price'] > 0, 'Excercise Price']
-    for strike in strikes:
-        scatter.append(go.Scatter(
-            x=df_payoff.loc[df_payoff.index == strike, :].index,
-            y=df_payoff.loc[df_payoff.index == strike, 'Total'],
-            mode='markers',
+        # option payoff chart
+        scatter = [go.Scatter(
+            x=df_payoff.index,
+            y=df_payoff['Total'],
+            mode='lines',
+            name=issuer,
             showlegend=False
-        ))
+        )]
 
-    layout = dict(title='Payoff',
-                  xaxis=dict(title='Stock Price'),
-                  yaxis=dict(title='P&L ($)')
-                  )
+        strikes = df_filter.loc[df['Excercise Price'] > 0, 'Excercise Price']
+        for strike in strikes:
+            scatter.append(go.Scatter(
+                x=df_payoff.loc[df_payoff.index == strike, :].index,
+                y=df_payoff.loc[df_payoff.index == strike, 'Total'],
+                mode='markers',
+                showlegend=False
+            ))
 
-    figure = dict(data=scatter, layout=layout)
+        layout = dict(title='Payoff',
+                      xaxis=dict(title='Stock Price'),
+                      yaxis=dict(title='P&L ($)')
+                      )
+
+        figure = dict(data=scatter, layout=layout)
 
     return figure
 
