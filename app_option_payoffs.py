@@ -33,7 +33,7 @@ app.layout = html.Div([
     html.Div(id='hidden', style={'display': 'none'}),
 
     # store component to store the filtered dataframe
-    dcc.Store(id='filtered_df'),
+    dcc.Store(id='filtered_df', modified_timestamp=0),
 
     # App Heading
     html.Div([
@@ -68,11 +68,20 @@ app.layout = html.Div([
     html.Div([
         dash_table.DataTable(
             id='sec_table',
-            columns=[{"name": i, "id": i} for i in fields],
+            columns=[{'name': i, 'id': i} if i != 'Security Type'
+                else {'name': i, 'id': i, 'presentation': 'dropdown'} for i in fields],
+            column_static_dropdown=[{
+                'id': 'Security Type',
+                'dropdown': [{'label': i, 'value': i} for i in ['OS', 'CO', 'PO']]
+            }],
             editable=True,
-            row_deletable=True
+            row_deletable=True,
+            data_timestamp=0
         )
     ], style={'width': '50%'}),
+
+    # add security button
+    html.Button('Add Security', id='add_rows_button', n_clicks_timestamp=0),
 
     # option payoff chart
     html.Div([
@@ -119,15 +128,38 @@ def clean_data(prt, issuer):
 # callback function to display row data on table
 @app.callback(
     dash.dependencies.Output('sec_table', 'data'),
-    [dash.dependencies.Input('filtered_df', 'data')]
+    [dash.dependencies.Input('filtered_df', 'modified_timestamp'),
+     dash.dependencies.Input('add_rows_button', 'n_clicks_timestamp'),
+     dash.dependencies.Input('sec_table', 'data_timestamp')],
+    [dash.dependencies.State('filtered_df', 'data'),
+     dash.dependencies.State('sec_table', 'data'),
+     dash.dependencies.State('sec_table', 'columns')]
 )
-def display_rows(data):
-    if data is None:
-        raise dash.exceptions.PreventUpdate
+def display_rows(drop_down_time, add_rows_time, edit_table_time, df, rows, columns):
 
-    return data
+    # if current table is nothing
+    if rows is None:
+        return df
 
-# arbitrary callback so editable table will update
+    # use timestamp to figure out which action was taken last
+    if drop_down_time > add_rows_time and drop_down_time > edit_table_time:
+        return df
+
+    elif add_rows_time > drop_down_time and add_rows_time > edit_table_time:
+        rows.append({c['id']: '' for c in columns})
+        return rows
+
+    elif edit_table_time > drop_down_time and edit_table_time > add_rows_time:
+        for row in rows:
+            try:
+                row['Total Cost'] = float(row['Average Cost']) * float(row['Unit Holding']) * float(row['Lot Size'])
+
+            except:
+                row['Total Cost'] = ''
+
+        return rows
+
+# arbitrary callback so editable table will update when user makes a selection from the drop down menu
 @app.callback(
     dash.dependencies.Output('hidden', 'children'),
     [dash.dependencies.Input('sec_table', 'data_timestamp')]
