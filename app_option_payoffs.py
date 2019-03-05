@@ -264,14 +264,24 @@ def update_chart(drop_down_time, add_rows_time, edit_table_time, rows, df):
         showlegend=False
     )]
 
-    strikes = df_filter.loc[df_filter['Excercise Price'] > 0, 'Excercise Price']
-    for strike in strikes:
+    df_filter = df_filter.loc[df_filter['Excercise Price'] > 0, :]
+    for idx, row in df_filter.iterrows():
+        if row['Security Type'] == 'CO':
+            option_type = 'Call'
+        else:
+            option_type = 'Put'
+
+        if row['Unit Holding'] >= 0:
+            long_short = 'Long'
+        else:
+            long_short = 'Short'
+
         scatter.append(go.Scatter(
-            x=df_payoff.loc[df_payoff.index == strike, :].index,
-            y=df_payoff.loc[df_payoff.index == strike, 'Total'],
+            x=df_payoff.loc[df_payoff.index == row['Excercise Price'], :].index,
+            y=df_payoff.loc[df_payoff.index == row['Excercise Price'], 'Total'],
             mode='markers',
-            showlegend=False,
-            hoverinfo='none'
+            showlegend=True,
+            name=long_short + ' ' + str(row['Excercise Price']) + ' ' + option_type
         ))
 
     layout = dict(title='Payoff',
