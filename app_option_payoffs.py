@@ -38,7 +38,7 @@ app.layout = html.Div([
     # App Heading
     html.Div([
         html.H1(
-            children='Option Payoffs',
+            children='Option Payoff Diagram',
             style={
                 'textAlign': 'center'
             }
@@ -51,7 +51,6 @@ app.layout = html.Div([
         dcc.Dropdown(
             id='prt-dropdown',
             options=prt_options
-
         )
 
     ], style={'display': 'table-cell', 'width': '25%'}),
@@ -64,31 +63,36 @@ app.layout = html.Div([
         )
     ], style={'display': 'table-cell', 'width': '25%'}),
 
-    # dash table
+
     html.Div([
-        dash_table.DataTable(
-            id='sec_table',
-            columns=[{'name': i, 'id': i} if i != 'Security Type'
-                else {'name': i, 'id': i, 'presentation': 'dropdown'} for i in fields],
-            column_static_dropdown=[{
-                'id': 'Security Type',
-                'dropdown': [{'label': i, 'value': i} for i in ['OS', 'CO', 'PO']]
-            }],
-            editable=True,
-            row_deletable=True,
-            data_timestamp=0
-        )
-    ], style={'width': '50%'}),
+
+        # dash table
+        html.Div([
+            dash_table.DataTable(
+                id='sec_table',
+                columns=[{'name': i, 'id': i} if i != 'Security Type'
+                    else {'name': i, 'id': i, 'presentation': 'dropdown'} for i in fields],
+                column_static_dropdown=[{
+                    'id': 'Security Type',
+                    'dropdown': [{'label': i, 'value': i} for i in ['OS', 'CO', 'PO']]
+                }],
+                editable=True,
+                row_deletable=True,
+                data_timestamp=0,
+            )
+        ], style={'width': '50%', 'float': 'left', 'margin-top': '60'}),
+
+        # option payoff chart
+        html.Div([
+            dcc.Graph(
+                id='payoff_graph',
+            )
+        ], style={'width': '50%', 'float': 'right'})
+
+    ]),
 
     # add security button
-    html.Button('Add Security', id='add_rows_button', n_clicks_timestamp=0),
-
-    # option payoff chart
-    html.Div([
-        dcc.Graph(
-            id='payoff_graph'
-        )
-    ], style={'width': '50%'})
+    html.Button('Add Security', id='add_rows_button', n_clicks_timestamp=0)
 
 ])
 
@@ -111,7 +115,7 @@ def update_issuer_dropdown(prt):
      dash.dependencies.Input('issuer-dropdown', 'value')]
 )
 def clean_data(prt, issuer):
-    print('storing issuer data in dataframe')
+
     if prt is not None and issuer is not None:
         sec_types = ['OS', 'CO', 'PO']
         df_filter = df[(df['Portfolio Code'] == prt) & (df['Security Type'].isin(sec_types)) &
@@ -120,6 +124,7 @@ def clean_data(prt, issuer):
             (df_filter['Security Type'].isin(['CO', 'PO']))].copy()
         df_filter['Average Cost'] = df_filter['Total Cost'] / (df_filter['Unit Holding'] * df_filter['Lot Size'])
         df_filter = df_filter.loc[:, fields].copy()
+        df_filter = df_filter.round(2)
         return df_filter.to_dict('rows')
 
     else:
@@ -151,6 +156,13 @@ def display_rows(drop_down_time, add_rows_time, edit_table_time, df, rows, colum
 
     elif edit_table_time > drop_down_time and edit_table_time > add_rows_time:
         for row in rows:
+
+            #set strike price to 0 if sec type is OS
+            if row['Security Type'] == 'OS':
+                row['Excercise Price'] = 0
+                row['Lot Size'] = 1
+
+            # calculate total cost
             try:
                 row['Total Cost'] = float(row['Average Cost']) * float(row['Unit Holding']) * float(row['Lot Size'])
 
@@ -170,21 +182,58 @@ def dummy(d):
 # callback function to update payoff chart
 @app.callback(
     dash.dependencies.Output('payoff_graph', 'figure'),
-    [dash.dependencies.Input('filtered_df', 'data')]
+    [dash.dependencies.Input('filtered_df', 'modified_timestamp'),
+    dash.dependencies.Input('add_rows_button', 'n_clicks_timestamp'),
+     dash.dependencies.Input('sec_table', 'data_timestamp'),
+     dash.dependencies.Input('sec_table', 'data')],
+    [dash.dependencies.State('filtered_df', 'data')]
 )
-def update_chart(data):
-    print('chart update')
-    if data == [{}]:
+def update_chart(drop_down_time, add_rows_time, edit_table_time, rows, df):
+
+    # if table is nothing don't update chart
+    if rows is None or rows == [{}]:
         raise dash.exceptions.PreventUpdate
 
-    df_filter = pd.DataFrame(data=data)
-    issuer = df_filter[df_filter['Security Type'] == 'OS']['Security'].values[0]
-    min_price = 0
-    max_price = max(df_filter['Market Price'].max(), df_filter['Excercise Price'].max()) * 2
-    prices = np.arange(min_price, max_price, 0.01)
-    df_payoff = pd.DataFrame(index=prices)
+    # if user clicks add row button don't update chart
+    if add_rows_time > drop_down_time and add_rows_time > edit_table_time:
+        raise dash.exceptions.PreventUpdate
+
+    # if user makes a drop down selection update chart from stored dataframe
+    # otherwise if user makes an edit on the table, check that values entered are valid and then update the chart
+    if drop_down_time > edit_table_time:
+
+        df_filter = pd.DataFrame(data=df)
+
+    else:
+        df_filter = pd.DataFrame(data=rows)
+        df_filter = df_filter.apply(pd.to_numeric, errors='ignore')
+        df_filter.fillna(value='', inplace=True)
+        try:
+            cond1 = df_filter['Security Type'].isin(['OS', 'CO', 'PO'])
+            cond2 = df_filter['Unit Holding'].apply(lambda x: isinstance(x, float) or isinstance(x, int))
+            cond3 = df_filter['Lot Size'].apply(lambda x: isinstance(x, float) or isinstance(x, int))
+            cond4 = df_filter['Market Price'].apply(lambda x: isinstance(x, float) or isinstance(x, int))
+            cond5 = df_filter['Excercise Price'].apply(lambda x: isinstance(x, float) or isinstance(x, int))
+            cond6 = df_filter['Average Cost'].apply(lambda x: isinstance(x, float) or isinstance(x, int))
+            cond7 = df_filter['Total Cost'].apply(lambda x: isinstance(x, float) or isinstance(x, int))
+
+        except:
+            raise dash.exceptions.PreventUpdate
+
+        if (cond1 & cond2 & cond3 & cond4 & cond5 & cond6 & cond7).all():
+            df_filter = df_filter[cond1 & cond2 & cond3 & cond4 & cond5 & cond6 & cond7]
+        else:
+            raise dash.exceptions.PreventUpdate
 
     # calculate payoffs and store in a dataframe
+    min_price = 0
+    max_price = max(df_filter['Market Price'].max(), df_filter['Excercise Price'].max()) * 2
+    try:
+        issuer = df_filter[df_filter['Security Type'] == 'OS']['Security'].values[0]
+    except:
+        issuer = ''
+    prices = np.arange(min_price, max_price, 0.01)
+    df_payoff = pd.DataFrame(index=prices)
     sec_count = 0
     for idx, row in df_filter.iterrows():
         if row['Security Type'] == 'OS':
@@ -221,7 +270,8 @@ def update_chart(data):
             x=df_payoff.loc[df_payoff.index == strike, :].index,
             y=df_payoff.loc[df_payoff.index == strike, 'Total'],
             mode='markers',
-            showlegend=False
+            showlegend=False,
+            hoverinfo='none'
         ))
 
     layout = dict(title='Payoff',
@@ -235,4 +285,4 @@ def update_chart(data):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, port=8080, host='192.168.162.91')
