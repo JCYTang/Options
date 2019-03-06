@@ -86,6 +86,9 @@ app.layout = html.Div([
         html.Div([
             dcc.Graph(
                 id='payoff_graph',
+                style={
+                    'height': 700
+                },
             )
         ], style={'width': '50%', 'float': 'right'})
 
