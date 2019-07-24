@@ -2,7 +2,15 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://W:/OPERATIONS/Jeremy/Investment Team/FTP/.idea/FTP.iml" filepath="W:/OPERATIONS/Jeremy/Investment Team/FTP/.idea/FTP.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../FactSet Consensus Data/.idea/FactSet Consensus Data.iml" filepath="$PROJECT_DIR$/../../../FactSet Consensus Data/.idea/FactSet Consensus Data.iml" />
+      <module fileurl="file://$USER_HOME$/PycharmProjects/LearnPythonTheHardWay/.idea/LearnPythonTheHardWay.iml" filepath="$USER_HOME$/PycharmProjects/LearnPythonTheHardWay/.idea/LearnPythonTheHardWay.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/Options.iml" filepath="$PROJECT_DIR$/.idea/Options.iml" />
+      <module fileurl="file://$USER_HOME$/PycharmProjects/Plotly Examples/.idea/Plotly Examples.iml" filepath="$USER_HOME$/PycharmProjects/Plotly Examples/.idea/Plotly Examples.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../WebScraping/PropertyListings/.idea/PropertyListings.iml" filepath="$PROJECT_DIR$/../WebScraping/PropertyListings/.idea/PropertyListings.iml" />
+      <module fileurl="file://W:/OPERATIONS/Jeremy/Investment Team/Ranking Screen/.idea/Ranking Screen.iml" filepath="W:/OPERATIONS/Jeremy/Investment Team/Ranking Screen/.idea/Ranking Screen.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../dash_TSR/.idea/dash_TSR.iml" filepath="$PROJECT_DIR$/../dash_TSR/.idea/dash_TSR.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../dash_attro_effect/.idea/dash_attro_effect.iml" filepath="$PROJECT_DIR$/../dash_attro_effect/.idea/dash_attro_effect.iml" />
     </modules>
   </component>
 </project>

@@ -6,5 +6,13 @@
     </content>
     <orderEntry type="jdk" jdkName="Python 3.6 (Options)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="dash_attro_effect" />
+    <orderEntry type="module" module-name="Plotly Examples" />
+    <orderEntry type="module" module-name="dash_TSR" />
+    <orderEntry type="module" module-name="FactSet Consensus Data" />
+    <orderEntry type="module" module-name="PropertyListings" />
+    <orderEntry type="module" module-name="Ranking Screen" />
+    <orderEntry type="module" module-name="FTP" />
+    <orderEntry type="module" module-name="LearnPythonTheHardWay" />
   </component>
 </module>
